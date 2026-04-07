@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+httpx
+groq
+gspread
+google-auth
+python-dotenv
