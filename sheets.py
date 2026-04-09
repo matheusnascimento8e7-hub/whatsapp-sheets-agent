@@ -1,6 +1,6 @@
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import config, json
 
@@ -32,8 +32,9 @@ def append_coverage(sender: str, parsed: dict, raw_message: str):
     sheet = get_sheet()
     ensure_header(sheet)
 
+    # Registro com fuso horário fixo (Brasília -3h)
     row = [
-        datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        datetime.now(tz=timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M:%S"),
         sender,
         parsed.get("cobrador", ""),
         parsed.get("coberto", "") or "",

@@ -37,8 +37,9 @@ Retorne SEMPRE um array JSON, mesmo que haja apenas uma cobertura:
   }
 ]
 
-Se a mensagem não contiver NENHUMA cobertura, retorne:
-[{"is_coverage": false}]
+Se NÃO for mensagem de cobertura — ou seja, se for uma pergunta, explicação, resposta, aviso, ou qualquer texto que não liste coberturas no formato "nome (cobrador)" ou "nome motivo(cobrador)" — retorne:[{"is_coverage": false}]
+
+Seja conservador: na dúvida, retorne is_coverage: false.
 
 Retorne SOMENTE o JSON array, sem explicações.
 """.strip()
