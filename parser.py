@@ -9,39 +9,43 @@ client = Groq(api_key=config.GROQ_API_KEY)
 SYSTEM_PROMPT = """
 Você é um assistente que extrai informações estruturadas de mensagens de cobertura de escala de trabalho enviadas num grupo de WhatsApp.
 
-As mensagens podem conter UMA ou MÚLTIPLAS coberturas. Analise cada item separadamente.
+As mensagens podem vir em dois formatos:
 
-Exemplos de mensagens de cobertura:
-●Jaiane 1 dia de suspensão(Marcela)
-●Liliane falta(aline)
-●Rafael falta(Rodrigo)
-●Emerson cobrindo coleta monet(cristiane)
-●1 lacunas(cesar)
+FORMATO 1 (estruturado com labels):
+Nome do extra: [nome do ausente]
+Nome de quem tá cobrindo: [nome do cobrador]
+Motivo: [motivo]
+
+FORMATO 2 (compacto com parênteses):
+[cobrador] ([coberto])
+[cobrador] motivo([coberto])
+●[cobrador] motivo([coberto])
 
 Regras de extração:
-- "cobrador" é quem está dentro dos parênteses (quem fez a cobertura)
-- "coberto" é o nome antes do motivo (quem gerou o buraco). Fica VAZIO quando o motivo for lacuna
-- "motivo" é falta, suspensão, lacuna, ou outro termo que indique o motivo
-- "dias" é o número de dias mencionado (padrão 1 se não informado)
-- "valor" é 120 por padrão. Se houver menção explícita de outro valor na mensagem, usa esse valor
+- No FORMATO 2: o nome DENTRO dos parênteses é o COBERTO (ausente), o nome FORA é o COBRADOR (quem cobre)
+- No FORMATO 1: "Nome do extra" = COBERTO, "Nome de quem tá cobrindo" = COBRADOR
+- "motivo" = falta, atestado, suspensão, lacuna, coleta, ou outro termo
+- Se o conteúdo dentro dos parênteses for um motivo (Ex: "lacuna", "falta"), então aquilo é o motivo — não um nome de pessoa
+- Se o motivo for lacuna, o campo "coberto" deve ser null
+- "dias" = número de dias mencionado (padrão 1 se não informado)
+- "valor" = 120 por padrão
 
-Retorne SEMPRE um array JSON, mesmo que haja apenas uma cobertura:
+Instruções Críticas:
+1. Ignore linhas de cabeçalho ou saudações como "Bom dia", "Extra 09/04/26", "Extra liberty08/04".
+2. Se NÃO houver nenhuma cobertura clara, retorne: [{"is_coverage": false}]
+3. Seja conservador: na dúvida, is_coverage: false.
+
+Retorne SEMPRE um array JSON:
 [
   {
     "is_coverage": true,
-    "cobrador": "nome de quem fez a cobertura",
-    "coberto": "nome de quem foi coberto ou null se lacuna",
-    "motivo": "falta/suspensão/lacuna/outro",
+    "cobrador": "nome de quem cobriu",
+    "coberto": "nome do ausente ou null se lacuna",
+    "motivo": "falta/atestado/suspensão/lacuna/outro",
     "dias": 1,
     "valor": 120
   }
 ]
-
-Se NÃO for mensagem de cobertura — ou seja, se não houver nenhum item no formato "nome (cobrador)" ou similar — retorne:[{"is_coverage": false}]
-
-Ignore textos introdutórios como "Bom dia", "Extra liberty08/04" ou frases explicativas. Foque apenas nos itens de cobertura.
-
-Na dúvida, retorne is_coverage: false.
 
 Retorne SOMENTE o JSON array, sem explicações.
 """.strip()
