@@ -6,13 +6,11 @@ import config, json
 app = FastAPI()
 
 ALLOWED_SENDER = "5524992222943"
+GROUP_JID = "120363182491077390@g.us"
 
 @app.post("/webhook")
 async def webhook(request: Request):
     body = await request.json()
-
-    # LOG DEBUG — mostra o payload completo nos logs do Railway
-    print(f"[DEBUG] Payload: {json.dumps(body)[:800]}")
 
     data = body.get("data", {})
     key = data.get("key", {})
@@ -26,8 +24,11 @@ async def webhook(request: Request):
     sender = participant or remote_jid
     sender_number = sender.replace("@s.whatsapp.net", "").replace("@g.us", "")
 
-    print(f"[DEBUG] remoteJid={remote_jid} | participant={participant} | sender_number={sender_number}")
+    # Filtra por grupo específico
+    if remote_jid != GROUP_JID:
+        return {"status": "ignored", "reason": "wrong group or direct message"}
 
+    # Filtra por remetente autorizado
     if sender_number != ALLOWED_SENDER:
         return {"status": "ignored", "reason": f"sender not allowed: {sender_number}"}
 
