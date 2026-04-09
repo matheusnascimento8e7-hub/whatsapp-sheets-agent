@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from parser import extract_coverage
 from sheets import append_coverage
-import config
+import config, json
 
 app = FastAPI()
 
@@ -10,6 +10,9 @@ ALLOWED_SENDER = "5524992222943"
 @app.post("/webhook")
 async def webhook(request: Request):
     body = await request.json()
+
+    # LOG DEBUG — mostra o payload completo nos logs do Railway
+    print(f"[DEBUG] Payload: {json.dumps(body)[:800]}")
 
     data = body.get("data", {})
     key = data.get("key", {})
@@ -23,8 +26,10 @@ async def webhook(request: Request):
     sender = participant or remote_jid
     sender_number = sender.replace("@s.whatsapp.net", "").replace("@g.us", "")
 
+    print(f"[DEBUG] remoteJid={remote_jid} | participant={participant} | sender_number={sender_number}")
+
     if sender_number != ALLOWED_SENDER:
-        return {"status": "ignored", "reason": "sender not allowed"}
+        return {"status": "ignored", "reason": f"sender not allowed: {sender_number}"}
 
     text = (
         message_data.get("conversation")
