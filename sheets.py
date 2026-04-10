@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import config, json
 
 load_dotenv()
-
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 def get_sheet():
@@ -17,22 +16,11 @@ def get_sheet():
 
 def ensure_header(sheet):
     if sheet.row_count == 0 or sheet.cell(1, 1).value is None:
-        sheet.append_row([
-            "Timestamp Recebimento",
-            "Remetente",
-            "Cobrador",
-            "Coberto",
-            "Motivo",
-            "Dias",
-            "Valor",
-            "Mensagem Original"
-        ])
+        sheet.append_row(["Timestamp Recebimento", "Remetente", "Cobrador", "Coberto", "Motivo", "Dias", "Valor", "Posto", "Mensagem Original"])
 
 def append_coverage(sender: str, parsed: dict, raw_message: str):
     sheet = get_sheet()
     ensure_header(sheet)
-
-    # Registro com fuso horário fixo (Brasília -3h)
     row = [
         datetime.now(tz=timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M:%S"),
         sender,
@@ -41,8 +29,8 @@ def append_coverage(sender: str, parsed: dict, raw_message: str):
         parsed.get("motivo", ""),
         parsed.get("dias", ""),
         parsed.get("valor", 120),
+        parsed.get("posto", "Liberty"),
         raw_message
     ]
-
     sheet.append_row(row)
-    print(f"[Sheets] Linha adicionada: {row[:4]}")
+    print(f"[Sheets] Linha adicionada: {row[:5]}")

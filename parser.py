@@ -1,132 +1,71 @@
 ﻿from groq import Groq
 from dotenv import load_dotenv
-import config, json, re
+import config, json
 
 load_dotenv()
 client = Groq(api_key=config.GROQ_API_KEY)
 
-MOTIVOS_CONHECIDOS = {"lacuna", "falta", "atestado", "suspensao", "coleta", "suporte"}
-
 SYSTEM_PROMPT = """
-Voce e um assistente que extrai informacoes de mensagens de cobertura de escala de trabalho de um grupo WhatsApp.
+Você é um assistente que extrai informações estruturadas de mensagens de cobertura de escala de trabalho enviadas num grupo de WhatsApp.
 
-FORMATO 1 (com labels explicitas):
-- "Nome do extra" = COBERTO (quem faltou, a posicao que precisa ser coberta)
-- "Nome de quem ta cobrindo" = COBRADOR (quem veio trabalhar no lugar)
-- "Motivo" = motivo da ausencia
+As mensagens podem vir em dois formatos:
 
-Exemplo FORMATO 1:
-Nome do extra: Aline Silva
-Nome de quem ta cobrindo: Arianna
-Motivo: falta
--> coberto=Aline Silva, cobrador=Arianna, motivo=falta
+FORMATO 1 (estruturado com labels):
+Nome do extra: [nome do ausente]
+Nome de quem tá cobrindo: [nome do cobrador]
+Motivo: [motivo]
 
-FORMATO 2 (compacto com parenteses):
-REGRA ABSOLUTA: FORA dos parenteses = COBRADOR (quem veio cobrir). DENTRO dos parenteses = COBERTO (quem faltou) + motivo + dias.
-Excecao: se dentro dos parenteses nao houver nome de pessoa (apenas motivo como lacuna), coberto = null.
+FORMATO 2 (compacto com parênteses):
+[ausente] ([cobrador])
+[ausente] motivo([cobrador])
+●[ausente] motivo([cobrador])
 
-Exemplos FORMATO 2:
-- "Marcela (liliane atestado 5 dias)" -> cobrador=Marcela, coberto=Liliane, motivo=atestado, dias=5
-- "Gabriel (moises falta)" -> cobrador=Gabriel, coberto=Moises, motivo=falta, dias=1
-- "Aline (lacuna)" -> cobrador=Aline, coberto=null, motivo=lacuna, dias=1
+Regras de extração:
+- No FORMATO 2: o nome FORA dos parênteses é o COBERTO (ausente), o nome DENTRO dos parênteses é o COBRADOR (quem cobre). Exceção: se o conteúdo dentro dos parênteses for um motivo (lacuna, falta, suspensão), então é o motivo e coberto fica null.
+- No FORMATO 1: "Nome do extra" = COBERTO, "Nome de quem tá cobrindo" = COBRADOR
+- "motivo" = falta, atestado, suspensão, lacuna, coleta, ou outro termo
+- Se o motivo for lacuna, coberto fica null
+- "dias" = número de dias (padrão 1)
+- "valor" = 120 por padrão
+- "posto" = nome do posto mencionado na mensagem (exemplos: Liberty, Socialtel Lapa, B&B Forte, B&B SDU, Wave by Yoo). Se a mensagem mencionar um posto no cabeçalho (ex: "Extra liberty 10/04", "Extra B&B SDU"), esse posto se aplica a TODAS as coberturas da mensagem. Se não houver menção alguma a posto, use "Liberty" como padrão.
 
-Ignore cabecalhos: "Bom dia", "Extra 09/04", "Extra", datas, saudacoes.
-Se nao houver cobertura clara: [{"is_coverage": false}]
+Instruções críticas:
+1. Ignore linhas de ruído como "Bom dia", "Extra 09/04/26", "Extra liberty08/04", "Extra", datas soltas e saudações — mas extraia o nome do posto dessas linhas se houver um.
+2. A mensagem pode conter múltiplos blocos "Nome do extra / Nome de quem tá cobrindo / Motivo" separados por linhas de ruído. Extraia TODOS os blocos válidos e ignore as linhas de ruído entre eles.
+3. Se não houver nenhuma cobertura clara, retorne: [{"is_coverage": false}]
+4. Na dúvida, is_coverage: false
 
-Retorne SOMENTE array JSON:
-[{"is_coverage": true, "cobrador": "nome ou null", "coberto": "nome ou null", "motivo": "falta/atestado/suspensao/lacuna/outro", "dias": 1, "valor": 120}]
+Retorne SEMPRE um array JSON:
+[
+  {
+    "is_coverage": true,
+    "cobrador": "nome de quem cobriu",
+    "coberto": "nome do ausente ou null se lacuna",
+    "motivo": "falta/atestado/suspensão/lacuna/outro",
+    "dias": 1,
+    "valor": 120,
+    "posto": "nome do posto ou Liberty se não mencionado"
+  }
+]
+
+Retorne SOMENTE o JSON array, sem explicações.
 """.strip()
 
-
-def _is_motivo(text: str) -> bool:
-    text_lower = text.lower().strip()
-    return any(m in text_lower for m in MOTIVOS_CONHECIDOS)
-
-
-def _extract_motivo(text: str) -> str:
-    text_lower = text.lower()
-    for m in MOTIVOS_CONHECIDOS:
-        if m in text_lower:
-            return m
-    return "falta"
-
-
-def _extract_dias(text: str) -> int:
-    match = re.search(r'(\d+)\s*dia', text.lower())
-    return int(match.group(1)) if match else 1
-
-
-def _extract_nome(text: str) -> str | None:
-    resultado = text
-    for m in MOTIVOS_CONHECIDOS:
-        resultado = re.sub(rf'\b{m}\b', '', resultado, flags=re.IGNORECASE)
-    resultado = re.sub(r'\d+\s*dias?', '', resultado, flags=re.IGNORECASE)
-    resultado = resultado.strip().title()
-    return resultado if resultado else None
-
-
-def _parse_compact_line(line: str) -> dict | None:
-    line = line.lstrip("- ").strip()
-    match = re.match(r'^(.+?)\s*\(([^)]+)\)\s*$', line)
-    if not match:
-        return None
-
-    fora = match.group(1).strip()
-    dentro = match.group(2).strip()
-
-    dias = _extract_dias(dentro)
-    motivo = _extract_motivo(dentro)
-    nome_coberto = _extract_nome(dentro)
-
-    return {
-        "is_coverage": True,
-        "cobrador": fora.title(),
-        "coberto": nome_coberto,
-        "motivo": motivo,
-        "dias": dias,
-        "valor": 120
-    }
-
-
-def _preprocess_compact(text: str) -> tuple[list[dict], str]:
-    lines = text.strip().splitlines()
-    regex_results = []
-    leftover_lines = []
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        result = _parse_compact_line(line)
-        if result:
-            regex_results.append(result)
-        else:
-            leftover_lines.append(line)
-
-    return regex_results, "\n".join(leftover_lines)
-
-
 def extract_coverage(message_text: str) -> list | None:
-    regex_results, leftover = _preprocess_compact(message_text)
-
-    llm_results = []
-
-    if leftover.strip():
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": leftover}
-            ],
-            temperature=0,
-        )
-        raw = response.choices[0].message.content.strip()
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            data = []
-        if isinstance(data, list):
-            llm_results = [item for item in data if item.get("is_coverage")]
-
-    all_results = regex_results + llm_results
-    return all_results if all_results else None
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": message_text}
+        ],
+        temperature=0,
+    )
+    raw = response.choices[0].message.content.strip()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, list):
+        return None
+    coverages = [item for item in data if item.get("is_coverage")]
+    return coverages if coverages else None
