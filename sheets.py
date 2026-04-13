@@ -19,18 +19,22 @@ def ensure_header(sheet):
         sheet.append_row(["Timestamp Recebimento", "Remetente", "Cobrador", "Coberto", "Motivo", "Dias", "Valor", "Posto", "Mensagem Original"])
 
 def append_coverage(sender: str, parsed: dict, raw_message: str):
-    sheet = get_sheet()
-    ensure_header(sheet)
-    row = [
-        datetime.now(tz=timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M:%S"),
-        sender,
-        parsed.get("cobrador", ""),
-        parsed.get("coberto", "") or "",
-        parsed.get("motivo", ""),
-        parsed.get("dias", ""),
-        parsed.get("valor", 120),
-        parsed.get("posto", "Liberty"),
-        raw_message
-    ]
-    sheet.append_row(row)
-    print(f"[Sheets] Linha adicionada: {row[:5]}")
+    try:
+        sheet = get_sheet()
+        ensure_header(sheet)
+        row = [
+            datetime.now(tz=timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M:%S"),
+            sender,
+            parsed.get("cobrador", ""),
+            parsed.get("coberto", "") or "",
+            parsed.get("motivo", ""),
+            parsed.get("dias", ""),
+            parsed.get("valor", 120),
+            parsed.get("posto", "Liberty"),
+            raw_message
+        ]
+        sheet.append_row(row)
+        print(f"[Sheets] ✅ Linha adicionada: {row[:5]}")
+    except Exception as e:
+        print(f"[Sheets] ❌ ERRO ao gravar: {e}")
+        raise  # re-lança para o main.py capturar também
