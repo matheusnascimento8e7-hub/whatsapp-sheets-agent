@@ -9,41 +9,42 @@ load_dotenv()
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 def get_sheet():
-    print(f"[Sheets] Conectando... SPREADSHEET_ID={config.SPREADSHEET_ID} SHEET_NAME={config.SHEET_NAME}")
     creds_dict = json.loads(config.GOOGLE_CREDENTIALS_JSON)
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(config.SPREADSHEET_ID)
-    ws = sh.worksheet(config.SHEET_NAME)
-    print(f"[Sheets] Planilha aberta com sucesso: {ws.title}")
-    return ws
-
-def ensure_header(sheet):
-    try:
-        val = sheet.cell(1, 1).value
-        if not val:
-            sheet.append_row(["Timestamp Recebimento", "Remetente", "Cobrador", "Coberto", "Motivo", "Dias", "Valor", "Posto", "Mensagem Original"])
-            print("[Sheets] Cabeçalho inserido")
-    except Exception as e:
-        print(f"[Sheets] Erro ao verificar cabeçalho: {e}")
+    return sh.worksheet(config.SHEET_NAME)
 
 def append_coverage(sender: str, parsed: dict, raw_message: str):
     try:
         sheet = get_sheet()
-        ensure_header(sheet)
-        row = [
-            datetime.now(tz=timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M:%S"),
-            sender,
-            parsed.get("cobrador") or "",
-            parsed.get("coberto") or "",
-            parsed.get("motivo", ""),
-            parsed.get("dias", ""),
-            parsed.get("valor", 120),
-            parsed.get("posto", "Liberty"),
-            raw_message
-        ]
-        sheet.append_row(row)
-        print(f"[Sheets] ✅ Linha gravada: cobrador={row[2]} coberto={row[3]} motivo={row[4]}")
+
+        timestamp = datetime.now(tz=timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M:%S")
+        cobrador = parsed.get("cobrador") or ""
+        coberto = parsed.get("coberto") or ""
+        motivo = parsed.get("motivo", "")
+        dias = parsed.get("dias", 1)
+        valor = parsed.get("valor", 120)
+        posto = parsed.get("posto", "Liberty")
+
+        # Encontra a próxima linha vazia a partir da linha 2 (pula cabeçalho)
+        all_values = sheet.col_values(1)  # coluna A (Timestamp)
+        next_row = len(all_values) + 1
+
+        # Grava cada coluna individualmente pelo índice para evitar
+        # problemas de ordem com tabelas formatadas do Google Sheets
+        sheet.update_cell(next_row, 1, timestamp)
+        sheet.update_cell(next_row, 2, sender)
+        sheet.update_cell(next_row, 3, cobrador)
+        sheet.update_cell(next_row, 4, coberto)
+        sheet.update_cell(next_row, 5, motivo)
+        sheet.update_cell(next_row, 6, dias)
+        sheet.update_cell(next_row, 7, valor)
+        sheet.update_cell(next_row, 8, posto)
+        sheet.update_cell(next_row, 9, raw_message)
+
+        print(f"[Sheets] ✅ Linha {next_row} gravada: cobrador={cobrador} coberto={coberto} motivo={motivo}")
+
     except Exception as e:
         print(f"[Sheets] ❌ ERRO AO GRAVAR: {e}")
         print(traceback.format_exc())
