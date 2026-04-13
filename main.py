@@ -41,17 +41,22 @@ async def webhook(request: Request):
     if not text:
         return {"status": "ignored", "reason": "no text content"}
 
-    print(f"[Webhook] Mensagem de {sender_number}: {text[:80]}...")
+    # Correção 3: Logando o texto completo para auditoria
+    print(f"[Webhook] Mensagem de {sender_number}: {text}")
 
     coverages = extract_coverage(text)
 
     if coverages is None:
         return {"status": "ignored", "reason": "not a coverage message"}
 
+    # Correção 2: Try/Except individual por cobertura no loop
     for parsed in coverages:
-        append_coverage(sender_number, parsed, text)
+        try:
+            append_coverage(sender_number, parsed, text)
+        except Exception as e:
+            print(f"[Webhook] ❌ Falha ao gravar cobertura {parsed}: {e}")
 
-    print(f"[Webhook] {len(coverages)} cobertura(s) gravada(s)")
+    print(f"[Webhook] {len(coverages)} cobertura(s) processada(s)")
     return {"status": "ok", "count": len(coverages), "extracted": coverages}
 
 
