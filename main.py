@@ -22,12 +22,14 @@ async def webhook(request: Request):
 
     # Log de diagnóstico — mostra TODAS as mensagens recebidas
     print(f"[Incoming] remote_jid={remote_jid!r} sender={sender_number!r}")
+    if not participant and remote_jid.endswith("@g.us"):
+        print(f"[Debug] participant vazio — payload completo: {json.dumps(body)}")
 
     if remote_jid != config.GROUP_JID:
         print(f"[Filter] grupo errado: {remote_jid!r} != {config.GROUP_JID!r}")
         return {"status": "ignored", "reason": "wrong group"}
 
-    if sender_number not in config.ALLOWED_SENDERS:
+    if config.ALLOWED_SENDERS and sender_number not in config.ALLOWED_SENDERS:
         print(f"[Filter] sender nao autorizado: {sender_number!r} not in {config.ALLOWED_SENDERS}")
         return {"status": "ignored", "reason": f"sender not allowed: {sender_number}"}
 
