@@ -16,14 +16,12 @@ async def webhook(request: Request):
         return {"status": "ignored", "reason": "from me"}
 
     remote_jid = key.get("remoteJid", "")
-    participant = data.get("participant", "")
+    participant = key.get("participantAlt", "") or key.get("participant", "")
     sender = participant or remote_jid
-    sender_number = sender.replace("@s.whatsapp.net", "").replace("@g.us", "")
+    sender_number = sender.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "")
 
     # Log de diagnóstico — mostra TODAS as mensagens recebidas
     print(f"[Incoming] remote_jid={remote_jid!r} sender={sender_number!r}")
-    if not participant and remote_jid.endswith("@g.us"):
-        print(f"[Debug] participant vazio — payload completo: {json.dumps(body)}")
 
     if remote_jid != config.GROUP_JID:
         print(f"[Filter] grupo errado: {remote_jid!r} != {config.GROUP_JID!r}")
