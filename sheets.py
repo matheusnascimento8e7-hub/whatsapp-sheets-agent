@@ -29,25 +29,16 @@ def append_coverage(sender: str, parsed: dict, raw_message: str):
         valor = parsed.get("valor", 120)
         posto = parsed.get("posto", "Liberty")
 
-        # Encontra a próxima linha vazia a partir da coluna A (Timestamp)
-        all_values = sheet.col_values(1)
-        next_row = len(all_values) + 1
-
         # Ordem das colunas na planilha:
         # A=Timestamp, B=Data, C=Remetente, D=Cobrador, E=Coberto,
         # F=Motivo, G=Dias, H=Valor, I=Posto, J=Mensagem Original
-        sheet.update_cell(next_row, 1, timestamp)
-        sheet.update_cell(next_row, 2, data)
-        sheet.update_cell(next_row, 3, sender)
-        sheet.update_cell(next_row, 4, cobrador)
-        sheet.update_cell(next_row, 5, coberto)
-        sheet.update_cell(next_row, 6, motivo)
-        sheet.update_cell(next_row, 7, dias)
-        sheet.update_cell(next_row, 8, valor)
-        sheet.update_cell(next_row, 9, posto)
-        sheet.update_cell(next_row, 10, raw_message)
+        sheet.append_row(
+            [timestamp, data, sender, cobrador, coberto, motivo, dias, valor, posto, raw_message],
+            value_input_option="USER_ENTERED",
+            insert_data_option="INSERT_ROWS",
+        )
 
-        print(f"[Sheets] ✅ Linha {next_row} gravada: cobrador={cobrador} coberto={coberto} motivo={motivo}")
+        print(f"[Sheets] ✅ Gravado: cobrador={cobrador} coberto={coberto} motivo={motivo}")
 
     except Exception as e:
         print(f"[Sheets] ❌ ERRO AO GRAVAR: {e}")

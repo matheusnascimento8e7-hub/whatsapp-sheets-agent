@@ -10,4 +10,4 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 SHEET_NAME = os.getenv("SHEET_NAME", "Coberturas")
 
 GROUP_JID = os.getenv("GROUP_JID")
-ALLOWED_SENDERS = set(os.getenv("ALLOWED_SENDERS", "").split(","))
+ALLOWED_SENDERS = set(filter(None, os.getenv("ALLOWED_SENDERS", "").split(",")))
